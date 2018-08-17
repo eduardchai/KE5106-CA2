@@ -64,6 +64,25 @@ def get_rating_value(star_view_el):
 
     return rating
 
+def get_latlong_from_postal(postal):
+    onemap_url = f'https://developers.onemap.sg/commonapi/search?searchVal={postal}&returnGeom=Y&getAddrDetails=N&pageNum=1'
+
+    res = requests.get(onemap_url)
+    data = res.json()
+    results = data["results"]
+
+    longitude = None
+    latitude = None
+
+    if len(results) > 0:
+        result = results[0]
+        if "LATITUDE" in result:
+            latitude = result["LATITUDE"]
+        if "LONGITUDE" in result:
+            longitude = result["LONGITUDE"]
+
+    return latitude, longitude
+
 def review_page(url, restaurant_id):
     db = client["KE5106"]
 
@@ -135,7 +154,22 @@ def individual_page(url):
 
     data["title"] = normalize(content.find("h1").text)
     data["_id"] = data["title"]
-    data["address"] = normalize(content.find("p", {"class":"address"}).text)
+
+    address = normalize(content.find("p", {"class":"address"}).text)
+    data["address"] = address
+
+    postal_code = re.findall(r'\d{6}', address)
+    if postal_code:
+        postal_code = postal_code[0]
+        lat, long = get_latlong_from_postal(postal_code)
+        data["postal_code"] = postal_code
+        data["latitude"] = lat
+        data["longitude"] = long
+    else:
+        data["postal_code"] = None
+        data["latitude"] = None
+        data["longitude"] = None
+
     data["description"] = normalize(content.find("div", {"class":"des-view"}).text)
 
     dl_elements = content.select("div.info-detail dl.dl-list")
@@ -154,6 +188,8 @@ def individual_page(url):
     review_page_url = url + "review/"
     review_page(review_page_url, data['_id'])
     print(data['_id'], "done!")
+    
+    return data
 
 def main():
     pp = pprint.PrettyPrinter(indent=2)
@@ -176,11 +212,8 @@ def main():
         li_elements = ul.find_all("li") 
         for li in li_elements:
             a_element = li.find("a")
-            # individual_page("https://www.hungrygowhere.com/singapore/8-korean-bbq-scotts-road-newton/")
-            if count >= 14:
-                individual_page(base_url + a_element['href'])
+            individual_page(base_url + a_element['href'])
             # pp.pprint(individual_page(base_url + a_element['href']))
-            # print("")
             count += 1
             if count == limit:
                 return
