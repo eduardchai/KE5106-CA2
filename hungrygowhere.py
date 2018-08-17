@@ -185,8 +185,8 @@ def individual_page(url):
 
     col.update_one({'_id':data['_id']}, {"$set":data}, upsert=True)
     
-    # review_page_url = url + "review/"
-    # review_page(review_page_url, data['_id'])
+    review_page_url = url + "review/"
+    review_page(review_page_url, data['_id'])
     print(data['_id'], "done!")
     
     return data
