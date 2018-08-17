@@ -16,11 +16,11 @@ whitelist = ["Instant Booking", "Address"]
 base_url = "https://www.hungrygowhere.com"
 limit = 9999
 
-client = MongoClient('', #ip_address:port
-                     username='', #username
-                     password='', #password
-                     authSource='admin',
-                     authMechanism='SCRAM-SHA-1')
+client = MongoClient('',
+                     username='',
+                     password='',
+                     authSource='',
+                     authMechanism='')
 
 def get_browser(driver=None):
     if driver == "chrome":
@@ -152,42 +152,46 @@ def individual_page(url):
 
     data = {}
 
-    data["title"] = normalize(content.find("h1").text)
-    data["_id"] = data["title"]
+    try:
+        data["title"] = normalize(content.find("h1").text)
+        data["_id"] = data["title"]
 
-    address = normalize(content.find("p", {"class":"address"}).text)
-    data["address"] = address
+        address = normalize(content.find("p", {"class":"address"}).text)
+        data["address"] = address
 
-    postal_code = re.findall(r'\d{6}', address)
-    if postal_code:
-        postal_code = postal_code[0]
-        lat, long = get_latlong_from_postal(postal_code)
-        data["postal_code"] = postal_code
-        data["latitude"] = lat
-        data["longitude"] = long
-    else:
-        data["postal_code"] = None
-        data["latitude"] = None
-        data["longitude"] = None
+        postal_code = re.findall(r'\d{6}', address)
+        if postal_code:
+            postal_code = postal_code[-1]
+            lat, long = get_latlong_from_postal(postal_code)
+            data["postal_code"] = postal_code
+            data["latitude"] = lat
+            data["longitude"] = long
+        else:
+            data["postal_code"] = None
+            data["latitude"] = None
+            data["longitude"] = None
 
-    data["description"] = normalize(content.find("div", {"class":"des-view"}).text)
+        data["description"] = normalize(content.find("div", {"class":"des-view"}).text)
 
-    dl_elements = content.select("div.info-detail dl.dl-list")
+        dl_elements = content.select("div.info-detail dl.dl-list")
 
-    for dl in dl_elements:
-        dt = dl.find("dt").text
-        dd = dl.find("dd").text
+        for dl in dl_elements:
+            dt = dl.find("dt").text
+            dd = dl.find("dd").text
 
-        if dt not in whitelist:
-            key = dt.lower().replace(" ", "_")
-            val = dd.strip().replace("\n", " ")
-            data[key] = val
+            if dt not in whitelist:
+                key = dt.lower().replace(" ", "_")
+                val = dd.strip().replace("\n", " ")
+                data[key] = val
 
-    col.update_one({'_id':data['_id']}, {"$set":data}, upsert=True)
-    
-    review_page_url = url + "review/"
-    review_page(review_page_url, data['_id'])
-    print(data['_id'], "done!")
+        col.update_one({'_id':data['_id']}, {"$set":data}, upsert=True)
+        
+        review_page_url = url + "review/"
+        review_page(review_page_url, data['_id'])
+        print(data['_id'], "done!")
+    except Exception:
+        print("ERROR: Unable to scrape data from:", url)
+        return None
     
     return data
 
@@ -207,16 +211,24 @@ def main():
     
     count = 0
 
+    errors = []
     for li_parent in li_parents:
         ul = li_parent.find("ul")
         li_elements = ul.find_all("li") 
         for li in li_elements:
             a_element = li.find("a")
-            individual_page(base_url + a_element['href'])
+            data = individual_page(base_url + a_element['href'])
+            if data is None:
+                errors.append("(Inconsistent URL) Unable to scrape data from: " + base_url + a_element['href'])
             # pp.pprint(individual_page(base_url + a_element['href']))
             count += 1
             if count == limit:
                 return
+
+    if len(errors) > 0:
+        print("\nERRORS:")
+        for err in errors:
+            print(err)
 
 if __name__ == "__main__":
     main()
