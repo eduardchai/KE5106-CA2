@@ -19,7 +19,7 @@ click-plugins==1.0.3
 cligj==0.4.0
 colorama==0.3.7
 constantly==15.1.0
-cryptography==2.3
+cryptography==3.2
 cryptography-vectors==2.3
 cycler==0.10.0
 decorator==4.3.0
